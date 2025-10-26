@@ -95,6 +95,9 @@ async function excelToLuckysheet(buffer) {
       left: 0;
       top: 0;
     }
+      .luckysheet_info_detail{
+        display:none !important;
+      }
   </style>
 </head>
 <body>
