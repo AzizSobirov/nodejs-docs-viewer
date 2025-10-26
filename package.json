@@ -1,0 +1,39 @@
+{
+  "name": "doc-viewer",
+  "version": "1.0.0",
+  "author": {
+    "name": "Aziz Sobirov",
+    "email": "azizdevuz@gmail.com",
+    "site": "https://azizdev.uz"
+  },
+  "description": "A Node.js application to view and convert various document formats (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX) to PDF.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "document",
+    "viewer",
+    "pdf",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "csv-parse": "^6.1.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "file-type": "^21.0.0",
+    "fs-extra": "^11.3.2",
+    "libreoffice-convert": "^1.7.0",
+    "mammoth": "^1.11.0",
+    "mime-types": "^2.1.35",
+    "xlsx": "^0.18.5"
+  }
+}
