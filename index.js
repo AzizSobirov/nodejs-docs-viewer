@@ -9,6 +9,9 @@ import libre from "libreoffice-convert";
 import { promisify } from "util";
 import { parse } from "csv-parse/sync";
 import LuckyExcel from "luckyexcel";
+import { config } from "dotenv";
+
+config(); // Load environment variables from .env file
 
 const __dirname = path.resolve();
 const convertAsync = promisify(libre.convert);
@@ -19,6 +22,28 @@ const CACHE_DIR = path.join(__dirname, "cache");
 const MAX_FILE_SIZE =
   parseInt(process.env.MAX_FILE_SIZE || "200") * 1024 * 1024; // in MB, default 200MB
 const CACHE_TIME = parseInt(process.env.CACHE_TIME || "86400") * 1000; // in seconds, default 24 hours
+
+// Security: Allowed domains (comma-separated in env, or empty for all)
+const ALLOWED_DOMAINS = process.env.ALLOWED_DOMAINS
+  ? process.env.ALLOWED_DOMAINS.split(",").map((d) => d.trim().toLowerCase())
+  : [];
+
+// Security: Accepted file formats
+const ACCEPTED_FORMATS = process.env.ACCEPTED_FORMATS
+  ? process.env.ACCEPTED_FORMATS.split(",").map((f) => f.trim().toLowerCase())
+  : [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".ppt",
+      ".pptx",
+      ".csv",
+      ".odt",
+      ".ods",
+      ".odp",
+    ];
 
 await fs.ensureDir(CACHE_DIR);
 
@@ -151,6 +176,30 @@ async function isCacheValid(filePath) {
   } catch {
     return false;
   }
+}
+
+function isAllowedDomain(url) {
+  // If no domains specified, allow all
+  if (ALLOWED_DOMAINS.length === 0) return true;
+
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+
+    // Check if hostname matches any allowed domain
+    return ALLOWED_DOMAINS.some((domain) => {
+      // Exact match or subdomain match
+      return hostname === domain || hostname.endsWith("." + domain);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function isAcceptedFormat(ext) {
+  if (!ext) return false;
+  const normalized = ext.toLowerCase();
+  return ACCEPTED_FORMATS.includes(normalized);
 }
 
 function createPdfViewerHtml(pdfUrl) {
@@ -411,6 +460,15 @@ app.get("/preview", async (req, res) => {
     if (!/^https?:\/\//i.test(src))
       return res.status(400).send("src must be an http(s) URL");
 
+    // Security: Check domain whitelist
+    if (!isAllowedDomain(src)) {
+      return res
+        .status(403)
+        .send(
+          `Access denied: Domain not in whitelist. Contact with us`
+        );
+    }
+
     const key = hash(src);
     const cachedPdf = path.join(CACHE_DIR, `${key}.pdf`);
     const cachedHtml = path.join(CACHE_DIR, `${key}.html`);
@@ -430,6 +488,17 @@ app.get("/preview", async (req, res) => {
     const detection = await detect(buffer, src);
     const ext = (detection.ext || "").toLowerCase();
     const mimeType = detection.mime || "application/octet-stream";
+
+    // Security: Check file format
+    if (!isAcceptedFormat(ext)) {
+      const filename = path.basename(src) || `file${ext}`;
+      const unsupportedHtml = createUnsupportedFileHtml(
+        `/download/${key}`,
+        filename,
+        ext
+      );
+      return res.type("html").send(unsupportedHtml);
+    }
 
     // PDF
     if (mimeType === "application/pdf" || ext === ".pdf") {
