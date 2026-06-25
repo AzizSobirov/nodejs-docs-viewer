@@ -60,10 +60,18 @@ async function downloadToBuffer(url) {
 }
 
 async function detect(buffer, fallbackName) {
+  const nameExt = (path.extname(fallbackName || "") || "").toLowerCase();
   const ft = await fileTypeFromBuffer(buffer);
-  if (ft) return { ext: `.${ft.ext}`, mime: ft.mime };
-  const ext = path.extname(fallbackName || "") || "";
-  return { ext, mime: mime.lookup(ext) || "application/octet-stream" };
+  if (ft) {
+    // Legacy MS Office files (.doc/.xls/.ppt/.msg) are all OLE2/CFB
+    // compound files, so file-type reports an ambiguous "cfb" type.
+    // Prefer the real extension from the filename when available.
+    if (ft.ext === "cfb" && nameExt) {
+      return { ext: nameExt, mime: mime.lookup(nameExt) || ft.mime };
+    }
+    return { ext: `.${ft.ext}`, mime: ft.mime };
+  }
+  return { ext: nameExt, mime: mime.lookup(nameExt) || "application/octet-stream" };
 }
 
 function csvToHtml(buffer) {
@@ -493,7 +501,7 @@ app.get("/preview", async (req, res) => {
     if (!isAcceptedFormat(ext)) {
       const filename = path.basename(src) || `file${ext}`;
       const unsupportedHtml = createUnsupportedFileHtml(
-        `/download/${key}`,
+        src,
         filename,
         ext
       );
@@ -522,11 +530,11 @@ app.get("/preview", async (req, res) => {
     if (
       ext === ".doc" ||
       ext === ".docx" ||
+      ext === ".odt" ||
       mimeType === "application/msword" ||
       mimeType ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"[
-          ".odt"
-        ]?.includes(ext)
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mimeType === "application/vnd.oasis.opendocument.text"
     ) {
       const pdfBuf = await convertAsync(buffer, ".pdf", undefined);
       await fs.writeFile(cachedPdf, pdfBuf);
@@ -578,7 +586,7 @@ app.get("/preview", async (req, res) => {
       // Show unsupported file page with download button
       const filename = path.basename(src) || `file${ext}`;
       const unsupportedHtml = createUnsupportedFileHtml(
-        `/download/${key}`,
+        src,
         filename,
         ext
       );
